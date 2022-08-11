@@ -3,7 +3,7 @@ import type {
   QueryDatabaseResponse,
   UserObjectResponse,
 } from "@notionhq/client/build/src/api-endpoints";
-import { isNil, reduceRight } from "ramda";
+import { isNil, reduceRight, isEmpty } from "ramda";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -118,23 +118,85 @@ export async function getUsers(): Promise<Record<string, UserObjectResponse>> {
 export async function getPages(): Promise<any> {
   const pageIds = await getStatsPageIds();
   const getPage = async (page_id: string) => notion.pages.retrieve({ page_id });
-  const pages = await Promise.all(pageIds.map(getPage));
-  return pages;
+  const pages = await Promise.allSettled(pageIds.map(getPage));
+  return pages.filter(x => x.status === 'fulfilled').map(x => x.value);
 }
 
-export async function getProperties({ pages, users }) {}
+export type RawNotionData = {
+   readonly database: any, 
+   readonly pages: any[], 
+   readonly users: Record<string, UserObjectResponse>, 
+   readonly games: Record<string, any>,
+   readonly properties: Record<string, any>
+}
+
+export async function getProperty(page: Record<string, any>, propertyName: string): Promise<any> {
+  const page_id = !isNil(page) && !isEmpty(page) ? page.id : undefined
+  // console.log(`page_id is "${page_id}"`)
+  const property_id = !isNil(page) && !isNil(page.properties) && !isNil(page.properties[propertyName]) ? page.properties[propertyName].id : undefined
+  // console.log(`property_id is "${page_id}"`)
+  if (page_id && property_id) {
+    return notion.pages.properties.retrieve({page_id: page.id, property_id: page.properties[propertyName].id})
+  }
+  return Promise.reject(`Failed to retrieve property ${propertyName} - please supply valid page id and property id`)
+}
+
+
+export async function mergePageData(page) {
+  const property = async (name) => { 
+    const result = await getProperty(page, name) 
+    // console.debug(`=== ${name}: ===`)
+    // console.debug(result)
+    return result
+  }
+
+  const winnerResponse = await property('Winner(s)')
+  const winners = winnerResponse.results
+
+  const game = await property('Game')
+  const date = await property('Date')
+  const participants = await property('Participants')
+
+  const output = {
+    date,
+    game,
+    winners,
+    participants
+  }
+
+  return output
+  
+}
+
+export async function mergeData(raw: RawNotionData) {
+  const { 
+    database, pages, users, games, properties
+  } = raw
+
+  console.log('pages:')
+  console.log(pages)
+
+  const settled = await Promise.allSettled(pages.map(mergePageData)).catch(e => console.error(e))
+  const merged = settled.filter(x => x.status === 'fulfilled').map(x => x.value)
+
+  return {
+    raw,
+    merged
+  } 
+}
 
 export async function getData() {
+  console.log('Getting data...')
   const database = await getDatabase();
   const { properties } = database;
   const games = await getGames(database);
   console.log(`games are ${games}`);
   const pages = await getPages();
   const users = await getUsers();
+  const merged = await mergeData({
+    database, games, pages, users, properties
+  })
+  console.log('Finished getting data...')
 
-  // const properties = await getProperties({ pages, users });
-  // console.log(users);
-  // console.log(pages[0]);
-  console.log(properties);
-  return { pages, users };
+  return merged;
 }

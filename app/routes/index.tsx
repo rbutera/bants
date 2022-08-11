@@ -31,6 +31,18 @@ function SingleUserCategory({ title, winner, total }) {
   );
 }
 
+export function MatchHistory({merged}) {
+  console.log(merged)
+
+  return (
+    <Category title="Match History">
+      <ul className="my-4">
+        <li>Foobar</li>
+      </ul>
+    </Category>
+  )
+}
+
 export default function Index() {
   const data = useLoaderData<typeof loader>();
   return (
@@ -47,6 +59,7 @@ export default function Index() {
             winner={fakeWinner}
             total={420}
           ></SingleUserCategory>
+          <MatchHistory merged={data.stats.merged}/>
         </div>
       </div>
     </main>
