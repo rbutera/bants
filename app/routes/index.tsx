@@ -1,17 +1,18 @@
 import type { LoaderArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
-import { getData } from "~/models/notion.server";
+import { useEffect } from "react";
+import { loadData } from "~/models/matches.server";
 
 export async function loader({ request }: LoaderArgs) {
-  const stats = await getData();
+  const stats = await loadData();
   return json({ stats });
 }
 
 function Category({ title, children }) {
   return (
     <section className="my-6">
-      <h2 className="mt-2 font-bold text-lg">{title}</h2>
+      <h2 className="mt-2 text-lg font-bold">{title}</h2>
       {children}
     </section>
   );
@@ -31,8 +32,8 @@ function SingleUserCategory({ title, winner, total }) {
   );
 }
 
-export function MatchHistory({merged}) {
-  console.log(merged)
+export function MatchHistory({ merged }) {
+  console.log(merged);
 
   return (
     <Category title="Match History">
@@ -40,11 +41,16 @@ export function MatchHistory({merged}) {
         <li>Foobar</li>
       </ul>
     </Category>
-  )
+  );
 }
 
 export default function Index() {
   const data = useLoaderData<typeof loader>();
+
+  useEffect(() => {
+    console.log(data);
+  }, [data]);
+
   return (
     // <main className="relative min-h-screen bg-white sm:flex sm:items-center sm:justify-center">
     <main className="relative min-h-screen bg-purple-900 text-white font-inter">
@@ -59,7 +65,6 @@ export default function Index() {
             winner={fakeWinner}
             total={420}
           ></SingleUserCategory>
-          <MatchHistory merged={data.stats.merged}/>
         </div>
       </div>
     </main>
