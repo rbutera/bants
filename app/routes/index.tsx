@@ -1,7 +1,6 @@
 import type { LoaderArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
-import { useEffect } from "react";
 import { loadData } from "~/models/matches.server";
 
 export async function loader({ request }: LoaderArgs) {
@@ -12,7 +11,7 @@ export async function loader({ request }: LoaderArgs) {
 function Category({ title, children }) {
   return (
     <section className="my-6">
-      <h2 className="mt-2 text-lg font-bold">{title}</h2>
+      <h2 className="mt-2 font-bold text-lg">{title}</h2>
       {children}
     </section>
   );
@@ -47,9 +46,9 @@ export function MatchHistory({ merged }) {
 export default function Index() {
   const data = useLoaderData<typeof loader>();
 
-  useEffect(() => {
-    console.log(data);
-  }, [data]);
+  // useEffect(() => {
+  // console.log(data);
+  // }, [data]);
 
   return (
     // <main className="relative min-h-screen bg-white sm:flex sm:items-center sm:justify-center">

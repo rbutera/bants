@@ -2,10 +2,12 @@ import * as csv from "fast-csv";
 import * as fs from "fs";
 import * as path from "path";
 import { flatten, isEmpty, isNil } from "ramda";
-import type User from "./matches/user"
-import type PlayerStats from "./matches/player-stats"
-import type { RawMatchData } from "./matches/match";
-import { Match, MatchData } from "./matches/match";
+import type { RawMatchData } from "./entities/match";
+import { MatchData, parseUserListString } from "./entities/match";
+import type PlayerStats from "./entities/player-stats";
+import type User from "./entities/user";
+
+import Directory from "./entities/directory";
 
 export async function loadResultsFromCsv(): Promise<RawMatchData[]> {
   return new Promise((resolve, reject) => {
@@ -24,55 +26,33 @@ export async function loadResultsFromCsv(): Promise<RawMatchData[]> {
   });
 }
 
-
-export const Users: Record<string, User> = {};
-
-export const Games: string[] = [];
-
-export const Matches: MatchData[] = [];
-
 export const stringToUser = (input: string): User => {
-  const allUserNames = Object.keys(Users);
+  const allUserNames = Object.keys(Directory.users);
   if (!allUserNames.includes(input)) {
     throw new Error(`User with name '${input}' not found`);
   }
-  return Users[input];
+  return Directory.users[input];
 };
-
 
 export function getGames(data: RawMatchData[]) {
   data.forEach((match) => {
     const game = match?.Game;
     if (isNil(game) || isEmpty(game)) return;
-    if (!Games.includes(match["Game"])) {
-      Games.push(match["Game"]);
-    }
+    Directory.addGame(match["Game"]);
   });
 }
 
-function parseUserListString(input: string): string[] {
-  return input.split(", ");
-}
-
-function userListStringToUsers(input: string): User[] {
-  const userNames = parseUserListString(input);
-  return userNames.map((userName) => {
-    return Users[userName];
-  });
-}
-
-export function generateUsers(data: RawMatchData[]) {
+export function populateUsers(data: RawMatchData[]) {
   data.forEach((item: RawMatchData) => {
     const participants = parseUserListString(item["Participants"]);
     participants.forEach((name: string) => {
-      const knownUsers = Object.keys(Users);
-      if (!isNil(name) && !isEmpty(name) && !knownUsers.includes(name)) {
-        Users[name] = {
-          id: Object.keys(Users).length,
+      const known = Object.keys(Directory.users);
+      if (!isNil(name) && !isEmpty(name) && !known.includes(name)) {
+        Directory.addUser({
           name,
           stats: {},
           history: [],
-        };
+        });
       }
     });
   });
@@ -86,14 +66,15 @@ function getStatsForUser(
   console.debug("getStatsForUser: ", name, game);
 
   const matchesForGame = matches.filter((match) => {
-    match.game === game;
-    match.participants.map((x) => x?.name).includes(name);
+    const gameMatches = match.game === game;
+    const participated = match.participants.map((x) => x?.name).includes(name);
+    return gameMatches && participated;
   });
 
   console.debug("got matches for game");
 
   const matchesWon = matchesForGame.filter((match) => {
-    match.winners.map((x) => x?.name).includes(name);
+    return match.winners.map((x) => x?.name).includes(name);
   });
 
   console.debug("got matches won");
@@ -114,13 +95,22 @@ export async function loadData(): Promise<{
   matches: MatchData[];
 }> {
   const raw = await loadResultsFromCsv();
-  generateUsers(raw);
+  populateUsers(raw);
   getGames(raw);
-  const matches = raw.map((item) => new MatchData(item));
+  const matches: MatchData[] = raw
+    .map((item) => {
+      try {
+        const data = new MatchData(item);
+        return data;
+      } catch (e) {
+        console.error(e);
+      }
+    })
+    .filter((x) => !isNil(x)) as MatchData[];
   const getStats = (user: string, game: string): PlayerStats =>
     getStatsForUser(matches, user, game);
 
-  const names = Object.keys(Users);
+  const names = Object.keys(Directory.users);
 
   console.log("processing users... names are: ", names);
 
@@ -128,18 +118,18 @@ export async function loadData(): Promise<{
     console.debug("processing results for user: ", name);
 
     const firstName = name.split(" ")[0];
-    Games.forEach((game) => {
+    Directory.games.forEach((game: string) => {
       console.debug(`getting ${firstName}'s stats for ${game}`);
       const stats = getStats(name, game);
       console.debug(`${firstName}'s stats for ${game} are:`, stats);
-      Users[name].stats[game] = stats;
+      Directory.users[name].stats[game] = stats;
     });
 
     console.debug("finished generating game stats for user", name);
 
     // add all games summary
-    const allGamesPlayed = Object.keys(Users[name].stats).map(
-      (game) => Users[name].stats[game]
+    const allGamesPlayed = Object.keys(Directory.users[name].stats).map(
+      (game) => Directory.users[name].stats[game]
     );
 
     console.debug("all games played are: ", allGamesPlayed);
@@ -151,15 +141,13 @@ export async function loadData(): Promise<{
       history: flatten(allGamesPlayed.map((game) => game.history)),
     };
 
-    Users[name].stats["All"] = all;
+    Directory.users[name].stats["All"] = all;
     console.debug("finished generating summary for user", name);
   });
 
   console.log("processed all users!");
 
   return {
-    games: Games,
-    users: Users,
-    matches,
+    users: Directory.users,
   };
 }
