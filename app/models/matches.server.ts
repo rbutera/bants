@@ -26,6 +26,22 @@ export async function loadResultsFromCsv(): Promise<RawMatchData[]> {
   });
 }
 
+export class ResultsQuery {
+  before?: Date;
+  after?: Date;
+  game?: string;
+  user?: string;
+}
+
+export async function loadResults({
+  before,
+  after,
+  game,
+  user,
+}: ResultsQuery): Promise<MatchData[]> {
+  const raw = await loadResultsFromCsv();
+}
+
 export const stringToUser = (input: string): User => {
   const allUserNames = Object.keys(Directory.users);
   if (!allUserNames.includes(input)) {
@@ -107,6 +123,7 @@ export async function loadData(): Promise<{
       }
     })
     .filter((x) => !isNil(x)) as MatchData[];
+
   const getStats = (user: string, game: string): PlayerStats =>
     getStatsForUser(matches, user, game);
 
