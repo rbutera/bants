@@ -2,6 +2,10 @@ import * as csv from "fast-csv";
 import * as fs from "fs";
 import * as path from "path";
 import { flatten, isEmpty, isNil } from "ramda";
+import type User from "./matches/user"
+import type PlayerStats from "./matches/player-stats"
+import type { RawMatchData } from "./matches/match";
+import { Match, MatchData } from "./matches/match";
 
 export async function loadResultsFromCsv(): Promise<RawMatchData[]> {
   return new Promise((resolve, reject) => {
@@ -20,39 +24,6 @@ export async function loadResultsFromCsv(): Promise<RawMatchData[]> {
   });
 }
 
-export type PlayerStats = {
-  game: string;
-  wins: number;
-  played: number;
-  history: MatchData[];
-};
-
-export class Match {
-  readonly date: Date;
-  readonly game: string;
-
-  constructor(date: string, game: string) {
-    this.date = new Date(date);
-    this.game = game;
-  }
-}
-
-export type User = {
-  id: number;
-  name: string;
-  stats: Record<string, PlayerStats>;
-  history: Match[];
-};
-
-export type RawMatchData = {
-  Date: string;
-  "Date Recorded": string;
-  Game: string;
-  "Match ID": string;
-  Participants: string;
-  "Reported by": string;
-  "Winner(s)": string;
-};
 
 export const Users: Record<string, User> = {};
 
@@ -68,16 +39,6 @@ export const stringToUser = (input: string): User => {
   return Users[input];
 };
 
-export class MatchData extends Match {
-  readonly participants: User[];
-  readonly winners: User[];
-
-  constructor(input: RawMatchData) {
-    super(input.Date, input.Game);
-    this.winners = userListStringToUsers(input["Winner(s)"]);
-    this.participants = userListStringToUsers(input["Participants"]);
-  }
-}
 
 export function getGames(data: RawMatchData[]) {
   data.forEach((match) => {
